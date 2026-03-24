@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>江海大-达成度计算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', 'Microsoft YaHei', sans-serif; }
+        .chart-box { 
+            position: relative; 
+            height: 320px; 
+            width: 100%; 
+            background: white;
+        }
+        .table-container { max-height: 400px; overflow-y: auto; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-16">
+
+    <header class="bg-white border-b sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-indigo-600 flex items-center">
+                <svg class="w-8 h-8 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                江海大-达成度计算器
+            </h1>
+            <div id="statusArea">
+                <span id="statusBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-400">
+                    等待上传 EXCEL
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        
+        <!-- Upload & Settings -->
+        <div class="bg-white rounded-2xl shadow-sm border p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="md:col-span-2">
+                    <h2 class="text-lg font-semibold mb-2">1. 数据配置</h2>
+                    <p class="text-sm text-gray-400 mb-6">
+                        列顺序：班级、学号、姓名、期末1-3题、期末4-6题、平时成绩
+                    </p>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <label class="relative flex-1 min-w-[260px] cursor-pointer group">
+                            <input type="file" id="excelFile" accept=".xlsx, .xls" class="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                            <div id="fileBox" class="border-2 border-dashed border-slate-200 group-hover:border-indigo-400 group-hover:bg-indigo-50 rounded-xl p-5 transition-all text-center">
+                                <div id="fileBoxText" class="text-slate-500 font-medium flex items-center justify-center gap-2">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    选择成绩单 (Excel)
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <button id="calcBtn" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 px-10 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            开始计算
+                        </button>
+
+                        <button id="resetBtn" class="hidden bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 hover:border-red-200 border border-slate-200 font-bold py-5 px-6 rounded-xl shadow-sm transition-all flex items-center gap-2" title="重置数据">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            重置
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                    <h3 class="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest">计算模型</h3>
+                    <div class="text-xs text-slate-600 leading-relaxed space-y-2">
+                        <p class="flex justify-between"><span>目标1:</span> <span>(期末1-3 + 平时×0.5) × 0.5</span></p>
+                        <p class="flex justify-between"><span>目标2:</span> <span>(期末4-6 + 平时×0.5) × 0.5</span></p>
+                        <div class="pt-2 border-t border-slate-200 font-bold text-indigo-600 flex justify-between">
+                            <span>最终成绩:</span> <span>目标1 + 目标2</span>
+                        </div>
+                        <div class="pt-2 mt-2 border-t border-slate-200">
+                            <p class="text-[10px] text-slate-400">保留1位小数，评价值=平均分/50</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Initial State -->
+        <div id="placeholder" class="py-32 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <svg class="w-20 h-20 mx-auto text-slate-100 mb-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"></path><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"></path></svg>
+            <p class="text-slate-400">等待上传数据，点击计算按钮后显示结果</p>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="resultsArea" class="hidden space-y-8 pb-20">
+            
+            <!-- Overall Course Achievement Analysis -->
+            <div class="fade-in bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl shadow-lg text-white p-6 relative overflow-hidden">
+                <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
+                
+                <h2 class="text-lg font-bold flex items-center mb-6">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    课程目标达成度分析
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Target 1 -->
+                    <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-indigo-200 uppercase">目标 1</span>
+                            <span class="text-xs bg-indigo-500/50 px-2 py-0.5 rounded text-white">权重 0.5</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-indigo-100">平均分</span>
+                                <span class="font-bold" id="resAvgT1">0.0</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-indigo-100">评价值 (Avg/50)</span>
+                                <span class="font-bold text-yellow-300" id="resEval1">0.000</span>
+                            </div>
+                            <div class="flex justify-between text-sm border-t border-white/10 pt-1 mt-1">
+                                <span class="text-indigo-100">权重值 (评价值×0.5)</span>
+                                <span class="font-bold" id="resWeight1">0.000</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target 2 -->
+                    <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-purple-200 uppercase">目标 2</span>
+                            <span class="text-xs bg-purple-500/50 px-2 py-0.5 rounded text-white">权重 0.5</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-indigo-100">平均分</span>
+                                <span class="font-bold" id="resAvgT2">0.0</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-indigo-100">评价值 (Avg/50)</span>
+                                <span class="font-bold text-yellow-300" id="resEval2">0.000</span>
+                            </div>
+                            <div class="flex justify-between text-sm border-t border-white/10 pt-1 mt-1">
+                                <span class="text-indigo-100">权重值 (评价值×0.5)</span>
+                                <span class="font-bold" id="resWeight2">0.000</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Result -->
+                    <div class="flex flex-col justify-center items-center text-center p-2">
+                        <p class="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-2">课程目标总达成值</p>
+                        <p class="text-5xl font-bold tracking-tight text-white mb-1" id="resCourseAchieve">0.000</p>
+                        <p class="text-xs text-indigo-300">(评价值1 + 评价值2) / 2</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Basic Stats Row -->
+            <div class="grid grid-cols-2 gap-4 fade-in" style="animation-delay: 0.1s">
+                <div class="bg-white p-5 rounded-2xl border-b-4 border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">参与统计人数</p>
+                        <p id="statCount" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                    <div class="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border-b-4 border-emerald-500 shadow-sm flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">全班平均总分</p>
+                        <p id="statAvgTotal" class="text-2xl font-bold text-emerald-600">0.0</p>
+                    </div>
+                    <div class="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 fade-in" style="animation-delay: 0.2s">
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-700 mb-6 flex items-center text-sm">
+                        <span class="w-1.5 h-5 bg-blue-500 rounded-full mr-3"></span>
+                        目标 1 达成度分布 (柱状图)
+                    </h3>
+                    <div class="chart-box">
+                        <canvas id="chartT1"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-700 mb-6 flex items-center text-sm">
+                        <span class="w-1.5 h-5 bg-purple-500 rounded-full mr-3"></span>
+                        目标 2 达成度分布 (柱状图)
+                    </h3>
+                    <div class="chart-box">
+                        <canvas id="chartT2"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm lg:col-span-2">
+                    <h3 class="font-bold text-slate-700 mb-6 flex items-center text-sm">
+                        <span class="w-1.5 h-5 bg-emerald-500 rounded-full mr-3"></span>
+                        全班成绩点状分布图 (课程总分)
+                    </h3>
+                    <div class="chart-box" style="height: 400px;">
+                        <canvas id="chartTotal"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden fade-in" style="animation-delay: 0.3s">
+                <div class="px-6 py-4 bg-slate-50 border-b flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    <span>计算结果明细 (TOP 100)</span>
+                    <span class="text-[10px] normal-case font-normal text-slate-400 italic">分数保留1位小数</span>
+                </div>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-slate-100">
+                        <thead class="bg-slate-50 sticky top-0 z-20">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">学号</th>
+                                <th class="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">姓名</th>
+                                <th class="px-6 py-3 text-left text-[10px] font-bold text-blue-500 uppercase tracking-widest">目标1</th>
+                                <th class="px-6 py-3 text-left text-[10px] font-bold text-purple-500 uppercase tracking-widest">目标2</th>
+                                <th class="px-6 py-3 text-left text-[10px] font-bold text-emerald-600 uppercase tracking-widest">课程总分</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-slate-50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 存储图表实例
+        let charts = { t1: null, t2: null, total: null };
+        let cachedRows = null;
+
+        const elFile = document.getElementById('excelFile');
+        const elCalc = document.getElementById('calcBtn');
+        const elReset = document.getElementById('resetBtn');
+        const elBadge = document.getElementById('statusBadge');
+        const elResults = document.getElementById('resultsArea');
+        const elPlaceholder = document.getElementById('placeholder');
+
+        // 1. 文件选择
+        elFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            elBadge.innerText = '正在读取...';
+            elBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600';
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const data = new Uint8Array(ev.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    
+                    if (json.length < 2) throw new Error('表格中未检测到有效记录');
+                    
+                    cachedRows = json;
+                    
+                    // UI反馈
+                    document.getElementById('fileBoxText').innerText = "已加载: " + file.name;
+                    document.getElementById('fileBox').classList.add('bg-emerald-50', 'border-emerald-400');
+                    elCalc.classList.remove('hidden');
+                    elReset.classList.remove('hidden');
+                    elBadge.innerText = '文件已就绪';
+                    elBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600';
+                } catch (err) {
+                    alert('文件读取失败: ' + err.message);
+                    elBadge.innerText = '读取失败';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // 2. 点击计算
+        elCalc.addEventListener('click', function() {
+            if (!cachedRows) return;
+            
+            this.innerText = "处理中...";
+            this.disabled = true;
+
+            const processed = parseData(cachedRows);
+            
+            if (processed.length > 0) {
+                renderUI(processed);
+                elBadge.innerText = `计算完成 (${processed.length}人)`;
+                elBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700';
+            } else {
+                alert('未解析到有效的数字成绩，请检查 Excel 列顺序是否正确');
+            }
+
+            this.innerText = "重新计算并绘图";
+            this.disabled = false;
+        });
+
+        // 3. 点击重置
+        elReset.addEventListener('click', function() {
+            // 清空数据
+            cachedRows = null;
+            elFile.value = ''; // 清空 input file
+            
+            // 恢复 UI 状态
+            document.getElementById('fileBoxText').innerHTML = `
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                选择成绩单 (Excel)
+            `;
+            document.getElementById('fileBox').className = "border-2 border-dashed border-slate-200 group-hover:border-indigo-400 group-hover:bg-indigo-50 rounded-xl p-5 transition-all text-center";
+            
+            elCalc.classList.add('hidden');
+            elReset.classList.add('hidden');
+            elCalc.innerText = "开始计算"; // 恢复按钮文字
+            
+            elResults.classList.add('hidden');
+            elPlaceholder.classList.remove('hidden');
+            
+            elBadge.innerText = '等待上传 EXCEL';
+            elBadge.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-400';
+            
+            // 销毁图表
+            Object.values(charts).forEach(c => {
+                if (c) c.destroy();
+            });
+            charts = { t1: null, t2: null, total: null };
+            
+            // 清空表格
+            document.getElementById('tableBody').innerHTML = '';
+        });
+
+        function parseData(rows) {
+            const list = [];
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length < 3) continue;
+
+                const safeNum = (v) => {
+                    let n = parseFloat(v);
+                    return Number.isFinite(n) ? n : 0;
+                };
+
+                const sid = String(r[1] || '-');
+                const name = String(r[2] || '-');
+                
+                const q1 = safeNum(r[3]);
+                const q2 = safeNum(r[4]);
+                const q3 = safeNum(r[5]);
+                const q4 = safeNum(r[6]);
+                const q5 = safeNum(r[7]);
+                const q6 = safeNum(r[8]);
+                const daily = safeNum(r[9]);
+
+                let t1 = ((q1 + q2 + q3) + (daily * 0.5)) * 0.5;
+                let t2 = ((q4 + q5 + q6) + (daily * 0.5)) * 0.5;
+                
+                // 四舍五入保留1位小数
+                t1 = Math.round(t1 * 10) / 10;
+                t2 = Math.round(t2 * 10) / 10;
+                
+                const total = Math.round((t1 + t2) * 10) / 10;
+
+                list.push({ sid, name, t1, t2, total });
+            }
+            return list;
+        }
+
+        function renderUI(data) {
+            elPlaceholder.classList.add('hidden');
+            elResults.classList.remove('hidden');
+
+            // --- 基础统计 ---
+            const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+            const avg = (arr) => arr.length ? sum(arr) / arr.length : 0;
+            
+            const t1Scores = data.map(d => d.t1);
+            const t2Scores = data.map(d => d.t2);
+            const totalScores = data.map(d => d.total);
+
+            const avgT1 = avg(t1Scores);
+            const avgT2 = avg(t2Scores);
+            const avgTotal = avg(totalScores);
+
+            // --- 达成度计算 ---
+            const eval1 = avgT1 / 50;  // 评价值1 = 平均分1 / 50
+            const eval2 = avgT2 / 50;  // 评价值2 = 平均分2 / 50
+            
+            const weight1 = eval1 * 0.5; // 权重值1
+            const weight2 = eval2 * 0.5; // 权重值2
+            
+            const courseAchieve = (eval1 + eval2) / 2; // 课程达成值
+
+            // --- 渲染统计面板 ---
+            
+            // 达成度分析块
+            document.getElementById('resAvgT1').innerText = avgT1.toFixed(1);
+            document.getElementById('resEval1').innerText = eval1.toFixed(3);
+            document.getElementById('resWeight1').innerText = weight1.toFixed(3);
+
+            document.getElementById('resAvgT2').innerText = avgT2.toFixed(1);
+            document.getElementById('resEval2').innerText = eval2.toFixed(3);
+            document.getElementById('resWeight2').innerText = weight2.toFixed(3);
+
+            document.getElementById('resCourseAchieve').innerText = courseAchieve.toFixed(3);
+
+            // 基础块
+            document.getElementById('statCount').innerText = data.length;
+            document.getElementById('statAvgTotal').innerText = avgTotal.toFixed(1);
+
+            // --- 渲染表格 (保留1位小数) ---
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = data.slice(0, 100).map(s => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-[10px] font-mono text-slate-400">${s.sid}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-700">${s.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs font-bold text-blue-600">${s.t1.toFixed(1)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs font-bold text-purple-600">${s.t2.toFixed(1)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs font-bold text-emerald-600">${s.total.toFixed(1)}</td>
+                </tr>
+            `).join('');
+
+            // 延迟绘图
+            setTimeout(() => {
+                initCharts(data);
+            }, 200);
+        }
+
+        function initCharts(data) {
+            // 清理旧图表
+            Object.values(charts).forEach(c => {
+                if (c) {
+                    c.destroy();
+                }
+            });
+
+            // 检查 Chart.js 是否加载
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js 未加载');
+                alert('图表库加载失败，请刷新页面重试');
+                return;
+            }
+
+            const labels = ['90-100分', '80-90分', '70-80分', '60-70分', '60分以下'];
+            const getDist = (scores) => {
+                const b = [0,0,0,0,0];
+                scores.forEach(s => {
+                    // 将分数乘以2后再分段统计
+                    const doubled = s * 2;
+                    if (doubled >= 90) b[0]++;
+                    else if (doubled >= 80) b[1]++;
+                    else if (doubled >= 70) b[2]++;
+                    else if (doubled >= 60) b[3]++;
+                    else b[4]++;
+                });
+                return b.map(v => ((v/scores.length)*100).toFixed(1));
+            };
+
+            try {
+                // 目标 1 柱状图
+                const ctx1 = document.getElementById('chartT1');
+                if (ctx1) {
+                    charts.t1 = new Chart(ctx1, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: '比例 (%)',
+                                data: getDist(data.map(d => d.t1)),
+                                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                borderWidth: 1,
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: '百分比 (%)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 目标 2 柱状图
+                const ctx2 = document.getElementById('chartT2');
+                if (ctx2) {
+                    charts.t2 = new Chart(ctx2, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: '比例 (%)',
+                                data: getDist(data.map(d => d.t2)),
+                                backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                                borderColor: 'rgba(168, 85, 247, 1)',
+                                borderWidth: 1,
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: '百分比 (%)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 总分散点图
+                const ctx3 = document.getElementById('chartTotal');
+                if (ctx3) {
+                    charts.total = new Chart(ctx3, {
+                        type: 'scatter',
+                        data: {
+                            datasets: [{
+                                label: '学生得分',
+                                data: data.map((d, i) => ({ x: i + 1, y: d.total })),
+                                backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                                borderColor: 'rgba(16, 185, 129, 1)',
+                                pointRadius: 6,
+                                pointHoverRadius: 10
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: '学生序号'
+                                    },
+                                    grid: { display: false }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: '分数'
+                                    },
+                                    min: 0,
+                                    max: 100
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const index = context.dataIndex;
+                                            const student = data[index];
+                                            return `${student.name}: ${context.parsed.y.toFixed(1)} 分`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('绘图错误:', e);
+            }
+        }
+    </script>
+</body>
+</html>
